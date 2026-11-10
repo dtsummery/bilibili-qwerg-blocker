@@ -2,9 +2,9 @@
 // @name         【哔哩哔哩】禁用 Q W E R G 快捷键
 // @name:en      Bilibili — Block Q/W/E/R/G
 // @namespace    https://github.com/cgy141514/bilibili-qwerg-blocker
-// @version      1.1.0
-// @description  只拦 Q / W / E / R / G 五个键，防止看视频时误触点赞、投币、收藏、三连、关注。装上即生效，输入框内不拦截，方向键与其它快捷键一律不动。
-// @description:en  Blocks only Q/W/E/R/G on Bilibili player pages so you never like, coin, favorite, triple-combo or follow by accident. Active immediately; typing in inputs is unaffected.
+// @version      1.2.0
+// @description  只拦 Q / W / E / R / G 五个键，防止看视频时误触点赞、投币、收藏、三连、关注。装上即静默生效（默认不显示悬浮窗），输入框内不拦截，方向键与其它快捷键一律不动。
+// @description:en  Blocks only Q/W/E/R/G on Bilibili player pages so you never like, coin, favorite, triple-combo or follow by accident. Silent by default (no floating panel); typing in inputs is unaffected.
 // @author       cgy141514
 // @license      MIT
 // @icon         https://static.hdslb.com/images/favicon.ico
@@ -357,6 +357,14 @@
         version: VERSION,
         inFrame: IS_FRAME,
         state: state,
+        /** 唤出设置面板（默认不显示；面板一旦建出就常驻到刷新）。 */
+        panel: function () {
+            if (IS_FRAME) return console.warn(TAG, "iframe 内不建面板");
+            buildPanel();
+            return host;
+        },
+        /** 显示一次右下角提示（默认不弹，排查时可手动调）。 */
+        toast: toast,
         diag: function () {
             const table = KEYS.map(function (def) {
                 return { 键: def.label, 已禁用: state[def.id] === true, 作用: def.desc };
@@ -418,8 +426,8 @@
     function boot() {
         markDom();
         if (IS_FRAME) return; // iframe 内只拦截，不建面板不弹提示
-        buildPanel();
-        toast();
+        // 默认静默生效：不建悬浮窗、不弹提示。五个键开箱即全部拦截，
+        // 需要单独关掉某个键时在控制台执行 __qwerg.panel() 唤出面板。
     }
 
     // document-start 时 body 还不存在，两种时机都要覆盖
@@ -428,13 +436,10 @@
     } else {
         document.addEventListener("DOMContentLoaded", boot, { once: true });
     }
-    // body 可能被 SPA 路由重建，兜一层
-    window.addEventListener("load", function () {
-        if (!IS_FRAME && (!host || !host.isConnected)) boot();
-        else markDom();
-    }, { once: true });
+    // body 可能被 SPA 路由重建，兜一层（只刷新 DOM 标记，不重建面板）
+    window.addEventListener("load", markDom, { once: true });
 
     console.log(TAG, "v" + VERSION + (IS_FRAME ? " (iframe)" : "") +
         " 已就绪 " + enabledCount() + "/" + KEYS.length +
-        "；控制台执行 __qwerg.diag() 查看详情");
+        "（静默模式，无悬浮窗）；__qwerg.panel() 唤出设置面板，__qwerg.diag() 查看判定详情");
 })();
