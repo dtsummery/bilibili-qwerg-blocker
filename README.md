@@ -29,9 +29,16 @@
 
 默认五个键全部拦截，不需要做任何事。
 
-### 唤出设置面板（可选）
+### 万一失效了：一键重置
 
 控制台执行：
+
+```js
+__qwerg.reset()    // 回到全部拦截，并清掉新旧本地配置
+__qwerg.stats      // 看本次页面拦了几次（>0 说明在工作）
+```
+
+### 唤出设置面板（可选）
 
 ```js
 __qwerg.panel()   // 显示面板；面板建出后会常驻到刷新
@@ -40,16 +47,20 @@ __qwerg.panel()   // 显示面板；面板建出后会常驻到刷新
 ### 单独关掉某个键
 
 ```js
-localStorage["qwerg-disabled"] = {"q":true,"w":true,"e":true,"r":true,"g":true}
+localStorage["qwerg-disabled-v2"] = {"q":true,"w":true,"e":false,"r":true,"g":true}
 ```
 
-把对应键设为 `false` 即放行该键（`true` = 禁用 / 拦截）。
+把对应键设为 `false` 即放行该键（`true` = 禁用 / 拦截）。改完刷新页面生效。
+
+> 注意：v1.2.0 及更早用的是 `qwerg-disabled`（无 `-v2`）作为键名，1.2.1 起换成 `qwerg-disabled-v2`。
+> 旧键里如果存过 `false`，会导致看起来「完全失效」，`__qwerg.reset()` 会一并清掉。
 
 ## 诊断
 
 ```js
 __qwerg.diag()    // 打印拦截统计与每个键的状态
 __qwerg.state     // 当前 state（true = 已禁用）
+__qwerg.stats     // { seen, blocked, last }
 __qwerg.toast()   // 手动弹一次右下角提示，排查用
 ```
 

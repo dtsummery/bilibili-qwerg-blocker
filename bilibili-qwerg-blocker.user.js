@@ -2,7 +2,7 @@
 // @name         【哔哩哔哩】禁用 Q W E R G 快捷键
 // @name:en      Bilibili — Block Q/W/E/R/G
 // @namespace    https://github.com/cgy141514/bilibili-qwerg-blocker
-// @version      1.2.0
+// @version      1.2.1
 // @description  只拦 Q / W / E / R / G 五个键，防止看视频时误触点赞、投币、收藏、三连、关注。装上即静默生效（默认不显示悬浮窗），输入框内不拦截，方向键与其它快捷键一律不动。
 // @description:en  Blocks only Q/W/E/R/G on Bilibili player pages so you never like, coin, favorite, triple-combo or follow by accident. Silent by default (no floating panel); typing in inputs is unaffected.
 // @author       cgy141514
@@ -67,7 +67,10 @@
     /* ================================================================== *
      * 配置：默认全开
      * ================================================================== */
-    const STORE_KEY = "qwerg-disabled";
+    // v2：v1 的键曾把配置存成全 false（面板上误点「全部启用」后会一直不拦截），
+    // 而 v1.2 起面板默认隐藏、没法再改回来。换键名让旧值失效，回到默认全拦截。
+    const STORE_KEY = "qwerg-disabled-v2";
+    const LEGACY_STORE_KEYS = ["qwerg-disabled"];
     const state = { q: true, w: true, e: true, r: true, g: true };
 
     function load() {
@@ -83,6 +86,19 @@
         KEYS.forEach(function (def) {
             if (typeof raw[def.id] === "boolean") state[def.id] = raw[def.id];
         });
+    }
+
+    /** 清掉配置并回到全拦截（控制台 __qwerg.reset() 可调）。 */
+    function reset() {
+        KEYS.forEach(function (def) { state[def.id] = true; });
+        try {
+            localStorage.removeItem(STORE_KEY);
+            LEGACY_STORE_KEYS.forEach(function (k) { localStorage.removeItem(k); });
+        } catch (e) { /* 忽略 */ }
+        refresh();
+        markDom();
+        console.log(TAG, "已重置为全部拦截 " + enabledCount() + "/" + KEYS.length);
+        return enabledCount();
     }
 
     function save() {
@@ -365,6 +381,10 @@
         },
         /** 显示一次右下角提示（默认不弹，排查时可手动调）。 */
         toast: toast,
+        /** 重置为全部拦截并清掉本地配置（v1 残留的 false 会一并清掉）。 */
+        reset: reset,
+        /** 本次页面实际拦截次数，用于确认脚本在工作。 */
+        stats: stats,
         diag: function () {
             const table = KEYS.map(function (def) {
                 return { 键: def.label, 已禁用: state[def.id] === true, 作用: def.desc };
