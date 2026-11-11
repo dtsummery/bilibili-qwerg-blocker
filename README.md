@@ -1,4 +1,4 @@
-# B站 QWERG 快捷键禁用（油猴脚本）
+# B站 QWERG **D** 快捷键禁用（油猴脚本）
 
 只拦 **Q / W / E / R / G / D** 六个键，防止看视频时误触点赞、投币、收藏、三连、关注。
 
@@ -74,7 +74,7 @@ __qwerg.toast()   // 手动弹一次右下角提示，排查用
 页面 `<html>` 上还有一个每秒刷新的属性，不开控制台也能看：
 
 ```html
-<html data-qwerg="1.3.0" data-qwerg-keys="6/6" data-qwerg-stat="seen=12;blocked=12;short=12;last=q:blocked">
+<html data-qwerg="1.4.1" data-qwerg-keys="6/6" data-qwerg-stat="seen=12;blocked=12;short=12;last=q:blocked">
 ```
 
 - `seen` — 收到几次相关按键

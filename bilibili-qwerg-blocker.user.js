@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         【哔哩哔哩】禁用 Q W E R G 快捷键
-// @name:en      Bilibili — Block Q/W/E/R/G
+// @name         【哔哩哔哩】禁用 Q W E R G D 快捷键
+// @name:en      Bilibili — Block Q/W/E/R/G/D
 // @namespace    https://github.com/cgy141514/bilibili-qwerg-blocker
-// @version      1.4.0
-// @description  只拦 Q / W / E / R / G / D 五个键，防止看视频时误触点赞、投币、收藏、三连、关注。装上即静默生效（默认不显示悬浮窗），输入框内不拦截，方向键与其它快捷键一律不动。
+// @version      1.4.1
+// @description  只拦 Q / W / E / R / G / D 六个键，防止看视频时误触点赞、投币、收藏、三连、关注。装上即静默生效（默认不显示悬浮窗），输入框内不拦截，方向键与其它快捷键一律不动。
 // @description:en  Blocks only Q/W/E/R/G on Bilibili player pages so you never like, coin, favorite, triple-combo or follow by accident. Silent by default (no floating panel); typing in inputs is unaffected.
 // @author       cgy141514
 // @license      MIT
@@ -46,7 +46,7 @@
 (function () {
     "use strict";
 
-    const VERSION = "1.4.0";
+    const VERSION = "1.4.1";
     const IS_FRAME = window.self !== window.top;
     const TAG = "[QWERG]";
 
