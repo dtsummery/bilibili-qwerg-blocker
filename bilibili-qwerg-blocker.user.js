@@ -2,8 +2,8 @@
 // @name         【哔哩哔哩】禁用 Q W E R G 快捷键
 // @name:en      Bilibili — Block Q/W/E/R/G
 // @namespace    https://github.com/cgy141514/bilibili-qwerg-blocker
-// @version      1.3.0
-// @description  只拦 Q / W / E / R / G 五个键，防止看视频时误触点赞、投币、收藏、三连、关注。装上即静默生效（默认不显示悬浮窗），输入框内不拦截，方向键与其它快捷键一律不动。
+// @version      1.4.0
+// @description  只拦 Q / W / E / R / G / D 五个键，防止看视频时误触点赞、投币、收藏、三连、关注。装上即静默生效（默认不显示悬浮窗），输入框内不拦截，方向键与其它快捷键一律不动。
 // @description:en  Blocks only Q/W/E/R/G on Bilibili player pages so you never like, coin, favorite, triple-combo or follow by accident. Silent by default (no floating panel); typing in inputs is unaffected.
 // @author       cgy141514
 // @license      MIT
@@ -46,7 +46,7 @@
 (function () {
     "use strict";
 
-    const VERSION = "1.3.0";
+    const VERSION = "1.4.0";
     const IS_FRAME = window.self !== window.top;
     const TAG = "[QWERG]";
 
@@ -59,10 +59,11 @@
         { id: "e", label: "E", desc: "收藏" },
         { id: "r", label: "R", desc: "长按一键三连" },
         { id: "g", label: "G", desc: "关注 UP 主" },
+        { id: "d", label: "D", desc: "开关弹幕" },
     ];
 
-    // e.key 拿不到时的兜底
-    const CODE_MAP = { 81: "q", 87: "w", 69: "e", 82: "r", 71: "g" };
+    // e.key 拿不到时的兜底（D 的 keyCode 是 68）
+    const CODE_MAP = { 81: "q", 87: "w", 69: "e", 82: "r", 71: "g", 68: "d" };
 
     /* ================================================================== *
      * 配置：默认全开
@@ -71,7 +72,7 @@
     // 而 v1.2 起面板默认隐藏、没法再改回来。换键名让旧值失效，回到默认全拦截。
     const STORE_KEY = "qwerg-disabled-v2";
     const LEGACY_STORE_KEYS = ["qwerg-disabled"];
-    const state = { q: true, w: true, e: true, r: true, g: true };
+    const state = { q: true, w: true, e: true, r: true, g: true, d: true };
 
     function load() {
         let raw = null;
@@ -309,7 +310,7 @@
             "<style>" + CSS + "</style>" +
             '<div class="box">' +
             '<div class="hd"><span class="fold"></span>' +
-            '<span class="title">Q W E R G 禁用</span>' +
+            '<span class="title">' + KEYS.map(function (d) { return d.label; }).join(" ") + ' 禁用</span>' +
             '<span class="sum"></span>' +
             '<span class="close" title="关闭面板（刷新页面可恢复）">✕</span></div>' +
             '<div class="bd"></div>' +
@@ -411,7 +412,7 @@
             "padding:6px 10px;border-radius:8px;font:12px/1.5 system-ui,sans-serif;" +
             "background:rgba(0,174,236,.95);color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.3);" +
             "cursor:pointer;user-select:none;transition:opacity .3s;";
-        el.textContent = "QWERG 已生效 " + enabledCount() + "/" + KEYS.length;
+        el.textContent = KEYS.map(function (d) { return d.label; }).join("") + " 已生效 " + enabledCount() + "/" + KEYS.length;
         el.title = "点击关闭；控制台执行 __qwerg.diag() 查看判定详情";
         el.addEventListener("click", function () { el.remove(); });
         parent.appendChild(el);

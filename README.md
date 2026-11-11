@@ -1,10 +1,10 @@
 # B站 QWERG 快捷键禁用（油猴脚本）
 
-只拦 **Q / W / E / R / G** 五个键，防止看视频时误触点赞、投币、收藏、三连、关注。
+只拦 **Q / W / E / R / G / D** 六个键，防止看视频时误触点赞、投币、收藏、三连、关注。
 
 方向键、空格、F、Esc 等其它快捷键**一律不动**；焦点在输入框 / 弹幕框 / 可编辑区时**放行**，所以评论照样打得出 qwerg。
 
-**装上即静默生效**：默认不显示悬浮窗、不弹提示，五个键开箱就是全部拦截，不需要任何配置。
+**装上即静默生效**：默认不显示悬浮窗、不弹提示，六个键开箱就是全部拦截，不需要任何配置。
 
 ## 两层拦截
 
@@ -34,7 +34,7 @@
 
 ## 配置
 
-默认五个键全部拦截，不需要做任何事。
+默认六个键全部拦截，不需要做任何事。
 
 ### 万一失效了：一键重置
 
@@ -54,7 +54,7 @@ __qwerg.panel()   // 显示面板；面板建出后会常驻到刷新
 ### 单独关掉某个键
 
 ```js
-localStorage["qwerg-disabled-v2"] = {"q":true,"w":true,"e":false,"r":true,"g":true}
+localStorage["qwerg-disabled-v2"] = {"q":true,"w":true,"e":false,"r":true,"g":true,"d":true}
 ```
 
 把对应键设为 `false` 即放行该键（`true` = 禁用 / 拦截）。改完刷新页面生效。
@@ -74,7 +74,7 @@ __qwerg.toast()   // 手动弹一次右下角提示，排查用
 页面 `<html>` 上还有一个每秒刷新的属性，不开控制台也能看：
 
 ```html
-<html data-qwerg="1.3.0" data-qwerg-keys="5/5" data-qwerg-stat="seen=12;blocked=12;short=12;last=q:blocked">
+<html data-qwerg="1.3.0" data-qwerg-keys="6/6" data-qwerg-stat="seen=12;blocked=12;short=12;last=q:blocked">
 ```
 
 - `seen` — 收到几次相关按键
