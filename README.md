@@ -6,6 +6,13 @@
 
 **装上即静默生效**：默认不显示悬浮窗、不弹提示，五个键开箱就是全部拦截，不需要任何配置。
 
+## 两层拦截
+
+1. **捕获阶段截停**：在 `window` / `document` 的捕获阶段挂监听，命中后 `preventDefault` + `stopImmediatePropagation`
+2. **短路站方 handler**（1.3.0 起）：劫持 `EventTarget.prototype.addEventListener`，站方每次注册 `keydown` / `keyup` / `keypress` 时塞一个前置判断，命中拦截键就不调它的 handler
+
+第 2 层是为「统计显示拦住了、视频照样点赞」这种情况加的 —— B 站部分播放器组件会抢注册 window 捕获监听，只靠第 1 层时它的 handler 已经先跑完了。有了第 2 层，不再依赖注册顺序。
+
 ## 安装（油猴 / Tampermonkey / Violentmonkey）
 
 点下面的链接，脚本管理器会自动弹出安装页：
@@ -63,6 +70,18 @@ __qwerg.state     // 当前 state（true = 已禁用）
 __qwerg.stats     // { seen, blocked, last }
 __qwerg.toast()   // 手动弹一次右下角提示，排查用
 ```
+
+页面 `<html>` 上还有一个每秒刷新的属性，不开控制台也能看：
+
+```html
+<html data-qwerg="1.3.0" data-qwerg-keys="5/5" data-qwerg-stat="seen=12;blocked=12;short=12;last=q:blocked">
+```
+
+- `seen` — 收到几次相关按键
+- `blocked` — 第 1 层拦了几次
+- `short` — 第 2 层短路掉站方 handler 几次
+
+`short` 一直在涨，说明站方确实在抢监听、而加强层正在生效。
 
 ## 匹配范围
 

@@ -2,7 +2,7 @@
 // @name         【哔哩哔哩】禁用 Q W E R G 快捷键
 // @name:en      Bilibili — Block Q/W/E/R/G
 // @namespace    https://github.com/cgy141514/bilibili-qwerg-blocker
-// @version      1.2.1
+// @version      1.3.0
 // @description  只拦 Q / W / E / R / G 五个键，防止看视频时误触点赞、投币、收藏、三连、关注。装上即静默生效（默认不显示悬浮窗），输入框内不拦截，方向键与其它快捷键一律不动。
 // @description:en  Blocks only Q/W/E/R/G on Bilibili player pages so you never like, coin, favorite, triple-combo or follow by accident. Silent by default (no floating panel); typing in inputs is unaffected.
 // @author       cgy141514
@@ -183,10 +183,62 @@
         onKey(e);
     }
 
-    ["keydown", "keyup"].forEach(function (type) {
-        window.addEventListener(type, guard, true);
-        document.addEventListener(type, guard, true);
-    });
+    // 保存原始 addEventListener：后面劫持时我们自己必须还能挂上真身。
+    const nativeAdd = EventTarget.prototype.addEventListener;
+
+    nativeAdd.call(window, "keydown", guard, true);
+    nativeAdd.call(window, "keyup", guard, true);
+    nativeAdd.call(document, "keydown", guard, true);
+    nativeAdd.call(document, "keyup", guard, true);
+
+    /* ================================================================== *
+     * 加强层：短路站方自己注册的按键监听
+     *
+     * 只靠捕获阶段 stopImmediatePropagation 的前提是"我们注册得更早"。
+     * B 站的部分播放器逻辑（React 组件）会在自己初始化时抢占 window 捕获，
+     * 那种情况下我们的统计照样 +1，但它的 handler 已经先跑完，表现就是
+     * "脚本显示拦住了、视频照样点赞"。
+     *
+     * 这里改包一层 addEventListener：站方每次注册 keydown / keyup / keypress，
+     * 都塞一个前置判断 —— 命中拦截键且焦点不在输入区时直接不调它的 handler。
+     * 这样不依赖注册顺序。
+     * ================================================================== */
+    const PAGE_KEY_EVENTS = { keydown: 1, keyup: 1, keypress: 1 };
+    let hardenHits = 0;
+
+    function hardenTarget(target) {
+        if (!target || typeof target.addEventListener !== "function") return;
+        // 已经是我们的包装就不再套（避免多次注入叠层）
+        if (target.__qwergHarden) return;
+        try {
+            Object.defineProperty(target, "__qwergHarden", { value: true, enumerable: false });
+        } catch (e) {
+            return;
+        }
+
+        const own = target.addEventListener;
+        target.addEventListener = function (type, listener, options) {
+            if (PAGE_KEY_EVENTS[type] && typeof listener === "function" && listener !== guard) {
+                const wrapped = function (event) {
+                    // 命中拦截键且不在输入区：站方 handler 一律不执行
+                    if (event && typeof event === "object" && !seenEvents.has(event)) {
+                        const k = keyOf(event);
+                        if (k && state[k] === true && !isTyping(event)) {
+                            hardenHits++;
+                            swallow(event);
+                            return undefined;
+                        }
+                    }
+                    return listener.apply(this, arguments);
+                };
+                return own.call(this, type, wrapped, options);
+            }
+            return own.call(this, type, listener, options);
+        };
+    }
+
+    hardenTarget(window);
+    hardenTarget(document);
 
     /* ================================================================== *
      * 设置面板（只在顶层页面创建，iframe 内只拦截不建面板）
@@ -434,7 +486,7 @@
         try {
             document.documentElement.setAttribute(
                 "data-qwerg-stat",
-                "seen=" + stats.seen + ";blocked=" + stats.blocked +
+                "seen=" + stats.seen + ";blocked=" + stats.blocked + ";short=" + hardenHits +
                 ";last=" + (stats.last ? stats.last.key + ":" + (stats.last.blocked ? "blocked" : stats.last.reason) : "-")
             );
         } catch (e) { /* 忽略 */ }
@@ -454,10 +506,12 @@
     if (document.body) {
         boot();
     } else {
-        document.addEventListener("DOMContentLoaded", boot, { once: true });
+        // 这里必须用原始 addEventListener —— 上面已经劫持过，
+        // 用劫持后的版本会多包一层 wrapper（虽然无害，但没必要）。
+        nativeAdd.call(document, "DOMContentLoaded", boot, { once: true });
     }
     // body 可能被 SPA 路由重建，兜一层（只刷新 DOM 标记，不重建面板）
-    window.addEventListener("load", markDom, { once: true });
+    nativeAdd.call(window, "load", markDom, { once: true });
 
     console.log(TAG, "v" + VERSION + (IS_FRAME ? " (iframe)" : "") +
         " 已就绪 " + enabledCount() + "/" + KEYS.length +
