@@ -1,10 +1,10 @@
 // ==UserScript==
-// @name         【哔哩哔哩】禁用 Q W E R G D 快捷键
-// @name:en      Bilibili — Block Q/W/E/R/G/D
+// @name         B站快捷键禁用
+// @name:en      Bilibili — Disable Shortcuts
 // @namespace    https://github.com/cgy141514/bilibili-qwerg-blocker
-// @version      1.4.1
-// @description  只拦 Q / W / E / R / G / D 六个键，防止看视频时误触点赞、投币、收藏、三连、关注。装上即静默生效（默认不显示悬浮窗），输入框内不拦截，方向键与其它快捷键一律不动。
-// @description:en  Blocks only Q/W/E/R/G on Bilibili player pages so you never like, coin, favorite, triple-combo or follow by accident. Silent by default (no floating panel); typing in inputs is unaffected.
+// @version      1.5.0
+// @description  禁用 B 站播放器除方向键与 Esc 外的全部快捷键，防止看视频时误触点赞、投币、收藏、三连、关注、弹幕开关、倍速、多P切换等。输入框内不拦截，Ctrl/Alt/Meta 组合键与浏览器功能键照常。
+// @description:en  Disable every Bilibili player shortcut except arrow keys and Esc. Typing in inputs, Ctrl/Alt/Meta combos and browser function keys still work.
 // @author       cgy141514
 // @license      MIT
 // @icon         https://static.hdslb.com/images/favicon.ico
@@ -46,33 +46,48 @@
 (function () {
     "use strict";
 
-    const VERSION = "1.4.1";
+    const VERSION = "1.5.0";
     const IS_FRAME = window.self !== window.top;
     const TAG = "[QWERG]";
 
     /* ================================================================== *
-     * 按键表
+     * 按键分组
+     *
+     * 从「只拦几个键」改成「除方向键和 Esc 外全拦」，所以这里列的是**类别**，
+     * 面板按类别开关，不再一个键一行。
      * ================================================================== */
     const KEYS = [
-        { id: "q", label: "Q", desc: "点赞 / 取消点赞（长按三连）" },
-        { id: "w", label: "W", desc: "投币" },
-        { id: "e", label: "E", desc: "收藏" },
-        { id: "r", label: "R", desc: "长按一键三连" },
-        { id: "g", label: "G", desc: "关注 UP 主" },
-        { id: "d", label: "D", desc: "开关弹幕" },
+        { id: "letters", label: "字母", desc: "Q 点赞 · W 投币 · E 收藏 · R 三连 · G 关注 · F 全屏 · M 静音 · D 弹幕" },
+        { id: "digits", label: "数字", desc: "Shift+1/2/3… 倍速" },
+        { id: "symbols", label: "符号", desc: "[ ] 多P 上/下一个" },
+        { id: "space", label: "空格", desc: "播放 / 暂停" },
+        { id: "enter", label: "回车", desc: "发弹幕（输入框内仍可正常回车）" },
+        { id: "media", label: "媒体键", desc: "键盘上的 play/pause 等" },
     ];
 
-    // e.key 拿不到时的兜底（D 的 keyCode 是 68）
-    const CODE_MAP = { 81: "q", 87: "w", 69: "e", 82: "r", 71: "g", 68: "d" };
+    /**
+     * 白名单：永远放行，不拦。
+     *
+     * 方向键与 Esc 是用户明确要保留的；其余是浏览器/系统功能键，
+     * 拦掉会连页面都无法正常操作（Tab 焦点、F5 刷新、F12 调试…）。
+     */
+    const PASS_KEYS = {};
+    [
+        "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown",
+        "Escape", "Esc",
+        "Tab",
+        "Control", "Alt", "Shift", "Meta", "CapsLock", "ContextMenu",
+        "Home", "End", "PageUp", "PageDown", "Insert", "Delete",
+        "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
+    ].forEach(function (k) { PASS_KEYS[k] = 1; });
 
     /* ================================================================== *
      * 配置：默认全开
      * ================================================================== */
-    // v2：v1 的键曾把配置存成全 false（面板上误点「全部启用」后会一直不拦截），
-    // 而 v1.2 起面板默认隐藏、没法再改回来。换键名让旧值失效，回到默认全拦截。
-    const STORE_KEY = "qwerg-disabled-v2";
-    const LEGACY_STORE_KEYS = ["qwerg-disabled"];
-    const state = { q: true, w: true, e: true, r: true, g: true, d: true };
+    // v3：配置结构从「每个键一个布尔」改成「每个类别一个布尔」，旧键值不再适用。
+    const STORE_KEY = "qwerg-disabled-v3";
+    const LEGACY_STORE_KEYS = ["qwerg-disabled", "qwerg-disabled-v2"];
+    const state = { letters: true, digits: true, symbols: true, space: true, enter: true, media: true };
 
     function load() {
         let raw = null;
@@ -136,11 +151,55 @@
         return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
     }
 
-    // 归一化成 a-z 里的单个字母；Shift 会得到大写，toLowerCase 抹平
-    function keyOf(e) {
-        const k = typeof e.key === "string" ? e.key.toLowerCase() : "";
-        if (k.length === 1 && k >= "a" && k <= "z") return k;
-        return CODE_MAP[e.keyCode] || CODE_MAP[e.which] || null;
+    /**
+     * 把一个按键归到某个类别，认不出来返回 null（不拦）。
+     *
+     * 用 `e.code` 优先而不是 `e.key`：Shift+1 的 e.key 是 "!"，
+     * 但 code 仍是 "Digit1"，这样才能把倍速键正确归类。
+     */
+    function groupOf(e) {
+        const code = typeof e.code === "string" ? e.code : "";
+        const key = typeof e.key === "string" ? e.key : "";
+
+        // 媒体键：e.key 形如 MediaPlayPause / MediaTrackNext / AudioVolumeUp
+        if (/^(Media|AudioVolume)/.test(key)) return "media";
+
+        if (code === "Space") return "space";
+        if (code === "Enter" || code === "NumpadEnter") return "enter";
+        if (/^Key[A-Z]$/.test(code)) return "letters";
+        if (/^Digit[0-9]$/.test(code) || /^Numpad[0-9]$/.test(code)) return "digits";
+        if (/^Bracket(Left|Right)$/.test(code)) return "symbols";
+
+        // code 缺失时（合成事件、老浏览器）退回 key 判断
+        if (!code) {
+            if (key === " " || key === "Spacebar") return "space";
+            if (key === "Enter") return "enter";
+            if (/^[a-zA-Z]$/.test(key)) return "letters";
+            if (/^[0-9]$/.test(key)) return "digits";
+            if (/^[\[\]]$/.test(key)) return "symbols";
+        }
+        return null;
+    }
+
+    /**
+     * 是否应该拦下这个事件。
+     *
+     * 放行条件（任一命中即不拦）：
+     *   1. 焦点在输入框 / 弹幕框 / 可编辑区 —— 否则评论打不出字
+     *   2. 输入法组合中 —— 否则中文输入被打断
+     *   3. 带 Ctrl / Alt / Meta —— 否则 Ctrl+C、Ctrl+W、Alt+Tab 全废
+     *   4. 白名单键（方向键、Esc、Tab、功能键、修饰键）
+     *   5. 认不出类别的键
+     *   6. 该类在面板里被关掉
+     */
+    function shouldBlock(e) {
+        if (isTyping(e)) return false;
+        if (e.isComposing || e.keyCode === 229) return false;
+        if (e.ctrlKey || e.metaKey || e.altKey) return false;
+        if (PASS_KEYS[e.key]) return false;
+        const group = groupOf(e);
+        if (!group) return false;
+        return state[group] === true;
     }
 
     // 页面可能冻结事件对象，逐项单独 try
@@ -155,22 +214,24 @@
     const stats = { seen: 0, blocked: 0, last: null };
 
     function onKey(e) {
-        if (e.isComposing || e.keyCode === 229) return; // 输入法组合中，跳过
-
-        const k = keyOf(e);
-        if (!k || !Object.prototype.hasOwnProperty.call(state, k)) return;
+        const group = groupOf(e);
+        if (!group) return; // 认不出的键不参与统计，也不拦
 
         stats.seen++;
-        const inInput = isTyping(e);
 
-        if (state[k] !== true || inInput) {
-            stats.last = { key: k, type: e.type, blocked: false, reason: inInput ? "焦点在输入框" : "该键未启用" };
+        if (!shouldBlock(e)) {
+            let reason = "该类别未启用";
+            if (isTyping(e)) reason = "焦点在输入框";
+            else if (e.isComposing || e.keyCode === 229) reason = "输入法组合中";
+            else if (e.ctrlKey || e.metaKey || e.altKey) reason = "组合键放行";
+            else if (PASS_KEYS[e.key]) reason = "白名单放行";
+            stats.last = { key: e.key, group: group, type: e.type, blocked: false, reason: reason };
             return;
         }
 
         swallow(e);
         stats.blocked++;
-        stats.last = { key: k, type: e.type, blocked: true, reason: "已拦截", inFrame: IS_FRAME };
+        stats.last = { key: e.key, group: group, type: e.type, blocked: true, reason: "已拦截", inFrame: IS_FRAME };
     }
 
     // 捕获阶段挂载：window 先于 document，命中后 stopImmediatePropagation
@@ -221,14 +282,11 @@
         target.addEventListener = function (type, listener, options) {
             if (PAGE_KEY_EVENTS[type] && typeof listener === "function" && listener !== guard) {
                 const wrapped = function (event) {
-                    // 命中拦截键且不在输入区：站方 handler 一律不执行
-                    if (event && typeof event === "object" && !seenEvents.has(event)) {
-                        const k = keyOf(event);
-                        if (k && state[k] === true && !isTyping(event)) {
-                            hardenHits++;
-                            swallow(event);
-                            return undefined;
-                        }
+                    // 命中拦截规则：站方 handler 一律不执行
+                    if (event && typeof event === "object" && shouldBlock(event)) {
+                        hardenHits++;
+                        swallow(event);
+                        return undefined;
                     }
                     return listener.apply(this, arguments);
                 };
@@ -310,7 +368,7 @@
             "<style>" + CSS + "</style>" +
             '<div class="box">' +
             '<div class="hd"><span class="fold"></span>' +
-            '<span class="title">' + KEYS.map(function (d) { return d.label; }).join(" ") + ' 禁用</span>' +
+            '<span class="title">B站快捷键禁用</span>' +
             '<span class="sum"></span>' +
             '<span class="close" title="关闭面板（刷新页面可恢复）">✕</span></div>' +
             '<div class="bd"></div>' +
@@ -412,7 +470,7 @@
             "padding:6px 10px;border-radius:8px;font:12px/1.5 system-ui,sans-serif;" +
             "background:rgba(0,174,236,.95);color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.3);" +
             "cursor:pointer;user-select:none;transition:opacity .3s;";
-        el.textContent = KEYS.map(function (d) { return d.label; }).join("") + " 已生效 " + enabledCount() + "/" + KEYS.length;
+        el.textContent = "B站快捷键已禁用 " + enabledCount() + "/" + KEYS.length + " 类";
         el.title = "点击关闭；控制台执行 __qwerg.diag() 查看判定详情";
         el.addEventListener("click", function () { el.remove(); });
         parent.appendChild(el);
@@ -440,36 +498,45 @@
         stats: stats,
         diag: function () {
             const table = KEYS.map(function (def) {
-                return { 键: def.label, 已禁用: state[def.id] === true, 作用: def.desc };
+                return { 类别: def.label, 已启用: state[def.id] === true, 覆盖: def.desc };
             });
             const out = {
                 version: VERSION,
                 在iframe里: IS_FRAME,
-                已禁用: enabledCount() + "/" + KEYS.length,
+                已启用类别: enabledCount() + "/" + KEYS.length,
                 收到相关按键: stats.seen,
                 实际拦截: stats.blocked,
+                短路站方handler: hardenHits,
                 最近一次: stats.last,
             };
             console.log("QWERG", out);
             console.table(table);
-            return { seen: stats.seen, blocked: stats.blocked, last: stats.last, state: state, enabled: table };
+            return { seen: stats.seen, blocked: stats.blocked, last: stats.last, state: state, groups: table };
         },
+        /** 查某个按键会被归到哪一类、当前是否拦截。例：__qwerg.probe('d') */
         probe: function (key) {
-            const k = String(key).toLowerCase();
-            const known = Object.prototype.hasOwnProperty.call(state, k);
-            const out = { key: k, 是否受管: known, 已禁用: known ? state[k] === true : null };
+            const fake = { key: String(key), code: "", ctrlKey: false, metaKey: false, altKey: false };
+            const group = groupOf(fake);
+            const out = {
+                key: String(key),
+                归类: group,
+                受管: group !== null,
+                会拦截: group !== null && state[group] === true,
+                白名单放行: !!PASS_KEYS[fake.key],
+            };
             console.log("probe", out);
             return out;
         },
-        set: function (key, on) {
-            const k = String(key).toLowerCase();
-            if (!Object.prototype.hasOwnProperty.call(state, k)) {
-                console.warn("不是受管的键：", k);
+        /** 按类别开关。例：__qwerg.set('letters', false) 放行全部字母键 */
+        set: function (group, on) {
+            if (!Object.prototype.hasOwnProperty.call(state, group)) {
+                console.warn("不是受管的类别：", group, "（可选：" + Object.keys(state).join(", ") + "）");
                 return false;
             }
-            state[k] = on === true;
+            state[group] = on === true;
             save();
             refresh();
+            markDom();
             return true;
         },
     };
